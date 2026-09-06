@@ -32,20 +32,19 @@ jobs:
           wget -qO- https://github.com/zhlynn/zsign/releases/download/v1.0.4/zsign-linux-x86_64.tar.gz | tar -xz
           chmod +x zsign
 
-      - name: Download, Sign and Upload Custom IPA
+      - name: Decode, Sign and Upload Custom IPA
         env:
-          IPA_URL: ${{ github.event.client_payload.ipa_url }}
+          IPA_B64: ${{ github.event.client_payload.ipa_base64 }}
           P12_B64: ${{ github.event.client_payload.p12_base64 }}
           PROV_B64: ${{ github.event.client_payload.prov_base64 }}
           PASS: ${{ github.event.client_payload.password }}
         run: |
           export OPENSSL_CONF=/tmp/custom_openssl.cnf
           
-          # پشکنین و داگرتنی فایلی IPA
-          echo "Downloading IPA from: $IPA_URL"
-          wget -q "$IPA_URL" -O raw_app.ipa || { echo "Failed to download IPA"; exit 1; }
+          # گۆڕینەوەی فایلی IPA لە Base64 بۆ فایلی ڕەسەن
+          echo "Decoding IPA file..."
+          echo "$IPA_B64" | tr -d ' \n\r' | base64 -d > raw_app.ipa || { echo "Failed to decode IPA"; exit 1; }
           
-          # وەرگرتنی بڕوانامەکان
           echo "$P12_B64" | tr -d ' \n\r' | base64 -d > cert.p12
           echo "$PROV_B64" | tr -d ' \n\r' | base64 -d > profile.mobileprovision
           
