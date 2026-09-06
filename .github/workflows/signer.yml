@@ -7,6 +7,7 @@ on:
 jobs:
   build_and_sign:
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # ڕێگری دەکات لە قوفڵبوونی سێرڤەری گیتھاب
     steps:
       - name: ⚡ Fast Checkout
         uses: actions/checkout@v4
@@ -20,6 +21,9 @@ jobs:
           CUSTOM_PASSWORD: ${{ github.event.client_payload.password }}
         run: |
           set -euo pipefail
+          
+          # شاردنەوەی وشەی نهێنی لە لۆگەکانی گیتھاب
+          echo "::add-mask::$CUSTOM_PASSWORD"
 
           cat << 'EOF' > /tmp/custom_openssl.cnf
           openssl_conf = openssl_init
@@ -40,9 +44,8 @@ jobs:
           
           LOWER_APP=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]')
           
-          # پشکنین بۆ ئەوەی بزانێت بەرنامەی تایبەتی بەکارهێنەرە یان بەرنامە ئامادەکراوەکان
           if [[ "$LOWER_APP" == "custom" && -n "$IPA_URL" ]]; then
-             wget -q "$IPA_URL" -O raw_app.ipa
+             wget -q "$IPA_URL" -O raw_app.ipa || exit 1
              REAL_NAME="CustomApp"
              ICON_NAME="Ashtemobile.jpeg"
           else
