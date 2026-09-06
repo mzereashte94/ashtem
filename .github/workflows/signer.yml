@@ -21,12 +21,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Install zsign
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y zsign
+          sudo apt-get install -y zip unzip libssl-dev build-essential
+
+      - name: Build zsign
+        run: |
+          git clone https://github.com/zhlynn/zsign.git
+          cd zsign
+          g++ *.cpp common/*.cpp -lcrypto -O3 -o zsign
+          sudo cp zsign /usr/local/bin/
 
       - name: Download Files
         run: |
