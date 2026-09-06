@@ -21,18 +21,21 @@ on:
 
 jobs:
   sign:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install dependencies and build zsign
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y zip unzip libssl-dev build-essential
+
+      - name: Build zsign
+        run: |
           git clone https://github.com/zhlynn/zsign.git
           cd zsign
-          g++ *.cpp common/*.cpp -lcrypto -O3 -o zsign
+          g++ $(find . -name "*.cpp") -lcrypto -O3 -o zsign
           sudo cp zsign /usr/local/bin/
 
       - name: Download Files
