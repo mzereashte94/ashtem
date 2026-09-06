@@ -8,6 +8,8 @@ jobs:
   build_and_sign:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: write # ئەمە زۆر گرنگە بۆ ئەوەی گیتھاب بتوانێت فایلەکە سەیڤ بکات
     steps:
       - name: ⚡ Fast Checkout
         uses: actions/checkout@v4
@@ -95,9 +97,8 @@ jobs:
           gh release upload V1 "${REAL_NAME}_signed.ipa" --clobber --repo ${{ github.repository }}
 
           # دروستکردنی فایلی ئینستاڵ ڕاستەوخۆ لەناو گیتھاب بۆ تێپەڕاندنی بلۆکی هۆستە خۆڕاییەکان
-          IPA_DL_URL="https://github.com/${{ github.repository }}/releases/download/V1/${REAL_NAME}_signed.ipa"
-          ICON_DL_URL="https://raw.githubusercontent.com/${{ github.repository }}/main/icons/${ICON_NAME}"
-          MANIFEST_FILE="${REAL_NAME}_manifest.plist"
+          mkdir -p manifests
+          MANIFEST_FILE="manifests/${REAL_NAME}_manifest.plist"
           
           cat <<EOF > $MANIFEST_FILE
           <?xml version="1.0" encoding="UTF-8"?>
@@ -113,7 +114,7 @@ jobs:
                               <key>kind</key>
                               <string>software-package</string>
                               <key>url</key>
-                              <string>$IPA_DL_URL</string>
+                              <string>https://github.com/${{ github.repository }}/releases/download/V1/${REAL_NAME}_signed.ipa</string>
                           </dict>
                           <dict>
                               <key>kind</key>
@@ -121,7 +122,7 @@ jobs:
                               <key>needs-shine</key>
                               <false/>
                               <key>url</key>
-                              <string>$ICON_DL_URL</string>
+                              <string>https://raw.githubusercontent.com/${{ github.repository }}/main/icons/${ICON_NAME}</string>
                           </dict>
                       </array>
                       <key>metadata</key>
@@ -141,4 +142,13 @@ jobs:
           </plist>
           EOF
           
-          gh release upload V1 "$MANIFEST_FILE" --clobber --repo ${{ github.repository }}
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add $MANIFEST_FILE
+          
+          # تەنها ئەگەر گۆڕانکاری هەبوو، فایلەکە سەیڤ دەکات
+          if ! git diff --staged --quiet; then
+            git commit -m "Auto-generate manifest for ${REAL_NAME}"
+            git pull --rebase origin main
+            git push
+          fi
