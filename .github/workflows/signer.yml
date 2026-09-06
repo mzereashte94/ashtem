@@ -4,16 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       ipa_url:
-        description: 'IPA Direct URL'
+        description: 'IPA URL'
         required: true
       p12_url:
-        description: 'P12 Certificate URL'
+        description: 'P12 URL'
         required: true
       prov_url:
         description: 'MobileProvision URL'
         required: true
       password:
         description: 'P12 Password'
+        required: true
+      return_url:
+        description: 'Server URL to return the signed IPA'
         required: true
 
 jobs:
@@ -23,13 +26,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install dependencies and build zsign
         run: |
           sudo apt-get update
           sudo apt-get install -y zip unzip libssl-dev build-essential
-
-      - name: Build zsign
-        run: |
           git clone https://github.com/zhlynn/zsign.git
           cd zsign
           g++ *.cpp common/*.cpp -lcrypto -O3 -o zsign
@@ -44,8 +44,6 @@ jobs:
       - name: Sign the IPA
         run: zsign -k cert.p12 -p '${{ github.event.inputs.password }}' -m cert.mobileprovision app.ipa -o signed_app.ipa
 
-      - name: Upload Signed IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: Signed-IPA
-          path: signed_app.ipa
+      - name: Send Signed IPA back to Server
+        run: |
+          curl -X POST -F "file=@signed_app.ipa" "${{ github.event.inputs.return_url }}"
