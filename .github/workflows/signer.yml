@@ -41,8 +41,11 @@ jobs:
         run: |
           export OPENSSL_CONF=/tmp/custom_openssl.cnf
           
-          wget -q "$IPA_URL" -O raw_app.ipa || exit 1
+          # پشکنین و داگرتنی فایلی IPA
+          echo "Downloading IPA from: $IPA_URL"
+          wget -q "$IPA_URL" -O raw_app.ipa || { echo "Failed to download IPA"; exit 1; }
           
+          # وەرگرتنی بڕوانامەکان
           echo "$P12_B64" | tr -d ' \n\r' | base64 -d > cert.p12
           echo "$PROV_B64" | tr -d ' \n\r' | base64 -d > profile.mobileprovision
           
@@ -59,16 +62,20 @@ jobs:
               with open(sys.argv[1], "rb") as f: pl = plistlib.load(f)
               pl["CFBundleIdentifier"] = sys.argv[2]
               with open(sys.argv[1], "wb") as f: plistlib.dump(pl, f)
-          except: pass
+          except Exception as e:
+              print(e)
           ' "$APP_DIR/Info.plist" "$NEW_BUNDLE_ID"
           
           rm raw_app.ipa
           zip -q0ur raw_app.ipa Payload
           
-          ./zsign -q -k cert.p12 -p "$PASS" -m profile.mobileprovision -b "$NEW_BUNDLE_ID" -o CustomApp_signed.ipa raw_app.ipa
+          # ساینکردن بە zsign
+          ./zsign -k cert.p12 -p "$PASS" -m profile.mobileprovision -b "$NEW_BUNDLE_ID" -o CustomApp_signed.ipa raw_app.ipa
           
+          # بەرزکردنەوەی بۆ Releases
           gh release upload V1 CustomApp_signed.ipa --clobber --repo ${{ github.repository }}
           
+          # دروستکردنی فایلی Manifest بۆ داگرتن
           cat <<EOF > CustomApp_manifest.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
