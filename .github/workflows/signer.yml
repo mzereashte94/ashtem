@@ -1,52 +1,106 @@
-name: iOS IPA Signer
+name: Premium Cloud Signer Engine (Ultra Fast)
 
 on:
-  workflow_dispatch:
-    inputs:
-      ipa_url:
-        description: 'IPA URL'
-        required: true
-      p12_url:
-        description: 'P12 URL'
-        required: true
-      prov_url:
-        description: 'MobileProvision URL'
-        required: true
-      password:
-        description: 'P12 Password'
-        required: true
-      return_url:
-        description: 'Server URL to return the signed IPA'
-        required: true
+  repository_dispatch:
+    types: [trigger-sign]
 
 jobs:
-  sign:
-    runs-on: ubuntu-20.04
+  build_and_sign:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: ⚡ Fast Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: 🚀 Ultra Fast Production Sign
+        env:
+          APP_NAME: ${{ github.event.client_payload.app_name }}
+          USE_FREE_CERT: ${{ github.event.client_payload.use_free_cert }}
+          CERT_ID: ${{ github.event.client_payload.cert_id }}
+          P12_BASE64: ${{ github.event.client_payload.p12_base64 }}
+          PROV_BASE64: ${{ github.event.client_payload.prov_base64 }}
+          CUSTOM_PASSWORD: ${{ github.event.client_payload.password }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
         run: |
-          sudo apt-get update
-          sudo apt-get install -y zip unzip libssl-dev build-essential
+          set -euo pipefail
 
-      - name: Build zsign
-        run: |
-          git clone https://github.com/zhlynn/zsign.git
-          cd zsign
-          g++ $(find . -name "*.cpp") -lcrypto -O3 -o zsign
-          sudo cp zsign /usr/local/bin/
+          # چارەسەرکردنی کێشەی OpenSSL
+          cat << 'EOF' > /tmp/custom_openssl.cnf
+          openssl_conf = openssl_init
+          [openssl_init]
+          providers = provider_sect
+          [provider_sect]
+          default = default_sect
+          legacy = legacy_sect
+          [default_sect]
+          activate = 1
+          [legacy_sect]
+          activate = 1
+          EOF
+          export OPENSSL_CONF=/tmp/custom_openssl.cnf
+          
+          LOWER_APP=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]')
+          
+          if [[ "$LOWER_APP" == "ashtemobile" ]]; then IPA_NAME="AshteMobile.ipa"; REAL_NAME="AshteMobile"; ICON_NAME="Ashtemobile.jpeg";
+          elif [[ "$LOWER_APP" == "esign" ]]; then IPA_NAME="Esign.ipa"; REAL_NAME="Esign"; ICON_NAME="Esign.jpeg";
+          elif [[ "$LOWER_APP" == "ksign" ]]; then IPA_NAME="Ksign.ipa"; REAL_NAME="Ksign"; ICON_NAME="Ksign.jpeg";
+          elif [[ "$LOWER_APP" == "mytv" ]]; then IPA_NAME="MyTV.ipa"; REAL_NAME="MyTV"; ICON_NAME="mytv.jpeg";
+          elif [[ "$LOWER_APP" == "ipaomtk" ]]; then IPA_NAME="IPAOMTK.ipa"; REAL_NAME="IPAOMTK"; ICON_NAME="ipaomtk.jpeg";
+          else IPA_NAME="AshteMobile.ipa"; REAL_NAME="AshteMobile"; ICON_NAME="Ashtemobile.jpeg"; fi
 
-      - name: Download Files
-        run: |
-          wget -q "${{ github.event.inputs.ipa_url }}" -O app.ipa
-          wget -q "${{ github.event.inputs.p12_url }}" -O cert.p12
-          wget -q "${{ github.event.inputs.prov_url }}" -O cert.mobileprovision
+          # دابەزاندنی خێرای ئامرازی zsign بێ ئەوەی کێشەی دروستکردنی هەبێت
+          wget -qO- https://github.com/zhlynn/zsign/releases/download/v1.0.4/zsign-linux-x86_64.tar.gz | tar -xz
+          chmod +x zsign
+          
+          # هێنانی بەرنامە خاوەکە لە بەشی Releases
+          gh release download V1 -p "$IPA_NAME" --repo ${{ github.repository }} > /dev/null 2>&1
+          mv "$IPA_NAME" raw_app.ipa
+          
+          if [[ "$USE_FREE_CERT" == "true" ]]; then
+            cp "$GITHUB_WORKSPACE/cert/$CERT_ID/cert.p12" ./cert.p12
+            cp "$GITHUB_WORKSPACE/cert/$CERT_ID/profile.mobileprovision" ./profile.mobileprovision
+            CERT_PASSWORD=$(cat "$GITHUB_WORKSPACE/cert/$CERT_ID/pass.txt" | tr -d '\n\r')
+          else
+            # وەرگرتنی بڕوانامەکان لە وێبسایتەکەتەوە
+            echo "$P12_BASE64" | tr -d ' \n\r' | base64 -d > cert.p12
+            echo "$PROV_BASE64" | tr -d ' \n\r' | base64 -d > profile.mobileprovision
+            CERT_PASSWORD=$(echo "$CUSTOM_PASSWORD" | tr -d '\n\r')
+          fi
 
-      - name: Sign the IPA
-        run: zsign -k cert.p12 -p '${{ github.event.inputs.password }}' -m cert.mobileprovision app.ipa -o signed_app.ipa
+          # کردنەوەی فایلەکە
+          unzip -q raw_app.ipa
+          APP_DIR=$(find Payload -maxdepth 1 -type d -name "*.app" | head -n 1)
 
-      - name: Send Signed IPA back to Server
-        run: |
-          curl -X POST -F "file=@signed_app.ipa" "${{ github.event.inputs.return_url }}"
+          # سڕینەوەی پڵەگینەکان کە ئایفۆن تێک دەدەن لە کاتی ساینکردندا
+          rm -rf "$APP_DIR/PlugIns" || true
+          rm -rf "$APP_DIR/Extensions" || true
+          rm -rf "$APP_DIR/Watch" || true
+
+          # دانانی لۆگۆی تایبەت
+          cp "$GITHUB_WORKSPACE/icons/$ICON_NAME" "$APP_DIR/CustomIpaBlackIcon.png" || true
+
+          # دروستکردنی ناسنامەیەکی تەواو نوێ بۆ ئەوەی ئایفۆنەکە فێڵ بخوات
+          NEW_BUNDLE_ID="com.ashtemobile.vip.${LOWER_APP}2024"
+
+          # گۆڕینی ناسنامە لەناو دڵی بەرنامەکەدا
+          python3 -c '
+          import plistlib, sys
+          plist_path = sys.argv[1]
+          new_bundle = sys.argv[2]
+          try:
+              with open(plist_path, "rb") as f: pl = plistlib.load(f)
+              pl["CFBundleIdentifier"] = new_bundle
+              pl["CFBundleIcons"] = {"CFBundlePrimaryIcon": {"CFBundleIconFiles": ["CustomIpaBlackIcon"], "UIPrerenderedIcon": True}}
+              if "CFBundleIcons~ipad" in pl: pl["CFBundleIcons~ipad"] = pl["CFBundleIcons"]
+              with open(plist_path, "wb") as f: plistlib.dump(pl, f)
+          except Exception as e:
+              pass
+          ' "$APP_DIR/Info.plist" "$NEW_BUNDLE_ID"
+
+          rm raw_app.ipa
+          zip -q0ur raw_app.ipa Payload
+
+          # واژۆکردنی بەرنامەکە بە ناسنامە نوێیەکە
+          ./zsign -q -k cert.p12 -p "$CERT_PASSWORD" -m profile.mobileprovision -b "$NEW_BUNDLE_ID" -o "${REAL_NAME}_signed.ipa" raw_app.ipa
+
+          # بەرزکردنەوەی فایلە ساینکراوەکە بۆ گیتھاب
+          gh release upload V1 "${REAL_NAME}_signed.ipa" --clobber --repo ${{ github.repository }}
