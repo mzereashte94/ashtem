@@ -1,0 +1,23 @@
+name: Asset Deleter
+
+on:
+  repository_dispatch:
+    types: [delete-asset]
+
+jobs:
+  delete_after_20_mins:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Wait for 20 minutes
+        run: sleep 1200
+        
+      - name: Delete Asset from Releases
+        env:
+          GH_TOKEN: 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
+        run: |
+          ASSET_ID=$(gh release view V1 --repo ${{ github.repository }} --json assets --jq '.assets[] | select(.name=="${{ github.event.client_payload.file_name }}") | .id')
+          if [ -n "$ASSET_ID" ]; then
+            echo "Deleting asset: ${{ github.event.client_payload.file_name }}"
+            gh api -X DELETE repos/${{ github.repository }}/releases/assets/$ASSET_ID
+          fi
