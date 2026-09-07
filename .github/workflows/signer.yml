@@ -41,14 +41,8 @@ jobs:
         run: |
           export OPENSSL_CONF=/tmp/custom_openssl.cnf
           
-          FINAL_URL="$IPA_URL"
-          if [[ "$FINAL_URL" == *"tmpfiles.org"* ]]; then
-              FINAL_URL=$(echo "$FINAL_URL" | sed 's|api/v1/dl/||g' | sed 's|dl/||g')
-              FINAL_URL=$(echo "$FINAL_URL" | sed 's|tmpfiles.org/|tmpfiles.org/api/v1/dl/|g')
-          fi
-          
-          echo "Downloading IPA from Cloud: $FINAL_URL"
-          curl -L -s -o raw_app.ipa "$FINAL_URL"
+          echo "Downloading IPA from Cloud: $IPA_URL"
+          curl -L -s -o raw_app.ipa "$IPA_URL"
           
           if ! unzip -t raw_app.ipa >/dev/null 2>&1; then
             echo "Error: Downloaded file is not a valid IPA (zip). The cloud blocked the direct link."
