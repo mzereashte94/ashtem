@@ -41,13 +41,16 @@ jobs:
         run: |
           export OPENSSL_CONF=/tmp/custom_openssl.cnf
           
-          # لێرەدا بە ئۆتۆماتیکی لینکە هەڵەکە ڕاست دەکەینەوە بۆ لینکی داگرتنی ڕاستەوخۆ
-          FINAL_URL=$(echo "$IPA_URL" | sed 's|tmpfiles.org/dl/|tmpfiles.org/api/v1/dl/|g')
+          # لێرەدا کۆدەکەم ڕاستکردەوە بۆ ئەوەی هەرگیز وشەی زیادە نەخاتە ناو لینکەکەوە
+          FINAL_URL=$(echo "$IPA_URL" | sed 's|api/v1/||g' | sed 's|api/v\*\*\*/||g')
+          
+          if [[ "$FINAL_URL" == *"tmpfiles.org"* && "$FINAL_URL" != *"tmpfiles.org/dl/"* ]]; then
+              FINAL_URL=$(echo "$FINAL_URL" | sed 's|tmpfiles.org/|tmpfiles.org/dl/|g')
+          fi
           
           echo "Downloading IPA from Cloud: $FINAL_URL"
           curl -L -s -o raw_app.ipa "$FINAL_URL"
           
-          # پشکنین بۆ ئەوەی بزانین فایلەکە بە ڕاستی دابەزیوە و فایلی بەرنامەیە نەک پەڕەی ئینتەرنێت
           if ! unzip -t raw_app.ipa >/dev/null 2>&1; then
             echo "Error: Downloaded file is not a valid IPA (zip). The cloud blocked the direct link."
             exit 1
