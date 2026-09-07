@@ -41,11 +41,10 @@ jobs:
         run: |
           export OPENSSL_CONF=/tmp/custom_openssl.cnf
           
-          # لێرەدا کۆدەکەم ڕاستکردەوە بۆ ئەوەی هەرگیز وشەی زیادە نەخاتە ناو لینکەکەوە
-          FINAL_URL=$(echo "$IPA_URL" | sed 's|api/v1/||g' | sed 's|api/v\*\*\*/||g')
-          
-          if [[ "$FINAL_URL" == *"tmpfiles.org"* && "$FINAL_URL" != *"tmpfiles.org/dl/"* ]]; then
-              FINAL_URL=$(echo "$FINAL_URL" | sed 's|tmpfiles.org/|tmpfiles.org/dl/|g')
+          FINAL_URL="$IPA_URL"
+          if [[ "$FINAL_URL" == *"tmpfiles.org"* ]]; then
+              FINAL_URL=$(echo "$FINAL_URL" | sed 's|api/v1/dl/||g' | sed 's|dl/||g')
+              FINAL_URL=$(echo "$FINAL_URL" | sed 's|tmpfiles.org/|tmpfiles.org/api/v1/dl/|g')
           fi
           
           echo "Downloading IPA from Cloud: $FINAL_URL"
@@ -132,12 +131,3 @@ jobs:
             git pull --rebase origin main
             git push
           fi
-
-          (
-            echo "Waiting 15 minutes before deleting release asset..."
-            sleep 900
-            ASSET_ID=$(gh release view V1 --repo ${{ github.repository }} --json assets --jq '.assets[] | select(.name=="'$FILE_NAME'") | .id')
-            if [ -n "$ASSET_ID" ]; then
-              gh api -X DELETE repos/${{ github.repository }}/releases/assets/$ASSET_ID
-            fi
-          ) &
