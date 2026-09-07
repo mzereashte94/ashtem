@@ -35,23 +35,21 @@ jobs:
       - name: Download, Sign and Upload Custom IPA
         env:
           IPA_URL: ${{ github.event.client_payload.ipa_url }}
-          P12_B64: ${{ github.event.client_payload.p12_base64 }}
-          PROV_B64: ${{ github.event.client_payload.prov_base64 }}
+          P12_URL: ${{ github.event.client_payload.p12_url }}
+          PROV_URL: ${{ github.event.client_payload.prov_url }}
           PASS: ${{ github.event.client_payload.password }}
+          GH_TOKEN: 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
         run: |
           export OPENSSL_CONF=/tmp/custom_openssl.cnf
           
-          # داگرتنی فایلەکە لە کلاودەوە بۆ گیتھاب
-          echo "Downloading IPA from Cloud: $IPA_URL"
           curl -L -s -o raw_app.ipa "$IPA_URL"
+          curl -L -s -o cert.p12 "$P12_URL"
+          curl -L -s -o profile.mobileprovision "$PROV_URL"
           
-          if [ ! -s raw_app.ipa ]; then
-            echo "Error: Failed to download IPA or file is empty."
+          if [ ! -s raw_app.ipa ] || [ ! -s cert.p12 ] || [ ! -s profile.mobileprovision ]; then
+            echo "Error: Failed to download one or more files."
             exit 1
           fi
-          
-          echo "$P12_B64" | tr -d ' \n\r' | base64 -d > cert.p12
-          echo "$PROV_B64" | tr -d ' \n\r' | base64 -d > profile.mobileprovision
           
           unzip -q raw_app.ipa
           APP_DIR=$(find Payload -maxdepth 1 -type d -name "*.app" | head -n 1)
@@ -127,18 +125,8 @@ jobs:
             git push
           fi
 
-          # سڕینەوەی ئۆتۆماتیکی فایلەکە لە Releases پاش ١٥ خولەک
-          (
-            echo "Waiting 15 minutes before deleting release asset..."
-            sleep 900
-            
-            ASSET_ID=\$(gh release view V1 --repo ${{ github.repository }} --json assets --jq '.assets[] | select(.name=="'$FILE_NAME'") | .id')
-            
-            if [ -n "\$ASSET_ID" ]; then
-              echo "Deleting asset ID: \$ASSET_ID"
-              gh api -X DELETE repos/${{ github.repository }}/releases/assets/\$ASSET_ID
-              echo "Deleted successfully from Releases."
-            else
-              echo "Asset not found."
-            fi
-          ) &
+          # ناردنی فەرمان بۆ سڕینەوەی فایلەکە پاش ٢٠ خولەک
+          curl -X POST https://api.github.com/repos/${{ github.repository }}/dispatches \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -d '{"event_type": "delete-asset", "client_payload": {"file_name": "'$FILE_NAME'"}}'
